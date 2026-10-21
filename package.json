@@ -1,0 +1,8 @@
+{
+  "name": "cravehub",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["frontend", "backend"],
+  "scripts": {"dev": "concurrently -k -n API,WEB -c blue,magenta \"npm run dev -w backend\" \"npm run dev -w frontend\"", "build": "npm run build -w backend && npm run build -w frontend", "test": "npm run test -w backend"},
+  "devDependencies": {"concurrently": "^9.1.2"}
+}
