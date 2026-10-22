@@ -1,5 +1,10 @@
 import axios from 'axios';
-export const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api', withCredentials: true, headers: { 'Content-Type': 'application/json' } });
+export const api = axios.create({
+  baseURL: 'https://cravehub-83so.onrender.com/api',
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' }
+});
+// export const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api', withCredentials: true, headers: { 'Content-Type': 'application/json' } });
 api.interceptors.response.use(r => r, e => { const message = e?.response?.data?.message || 'Could not connect to CraveHub. Is the API running?'; return Promise.reject(new Error(message)); });
 export type MenuItem = { _id: string; name: string; description?: string; price: number; category: string; vegetarian: boolean; available: boolean; image?: string };
 export type Restaurant = { _id: string; name: string; slug: string; description?: string; cuisines: string[]; rating: number; ratingCount: number; costForTwo: number; deliveryMinutes: number; deliveryFee: number; image: string; coverImage?: string; discount?: string; vegetarian: boolean; isOpen: boolean; address?: string; menu?: MenuItem[] };
