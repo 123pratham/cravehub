@@ -55,18 +55,82 @@ api.get('/restaurants', asyncHandler(async (req, res) => {
   const [data, total] = await Promise.all([Restaurant.find(filter).sort(sortMap[String(req.query.sort)] || sortMap.relevance).skip((page - 1) * limit).limit(limit).lean(), Restaurant.countDocuments(filter)]);
   res.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
 }));
+
 api.get('/restaurants/:id', asyncHandler(async (req, res) => {
-  const doc = await Restaurant.findOne({ $or: [{ _id: /^[0-9a-fA-F]{24}$/.test(req.params.id) ? req.params.id : null }, { slug: req.params.id }] }).lean();
-  if (!doc) return fail(res, 404, 'Restaurant not found.'); res.json({ data: doc });
+  const id = req.params.id ?? '';
+
+  const doc = await Restaurant.findOne({
+    $or: [
+      { _id: /^[0-9a-fA-F]{24}$/.test(id) ? id : null },
+      { slug: id }
+    ]
+  }).lean();
+
+  if (!doc) {
+    return fail(res, 404, 'Restaurant not found.');
+  }
+
+  return res.json({ data: doc });
 }));
+
 api.get('/restaurants/:id/menu', asyncHandler(async (req, res) => {
-  const doc = await Restaurant.findOne({ $or: [{ _id: /^[0-9a-fA-F]{24}$/.test(req.params.id) ? req.params.id : null }, { slug: req.params.id }] }).select('name menu').lean();
-  if (!doc) return fail(res, 404, 'Restaurant not found.'); res.json({ data: doc.menu, restaurant: { name: doc.name } });
+  const id = req.params.id ?? '';
+
+  const doc = await Restaurant.findOne({
+    $or: [
+      { _id: /^[0-9a-fA-F]{24}$/.test(id) ? id : null },
+      { slug: id }
+    ]
+  }).select('name menu').lean();
+
+  if (!doc) {
+    return fail(res, 404, 'Restaurant not found.');
+  }
+
+  return res.json({
+    data: doc.menu,
+    restaurant: { name: doc.name }
+  });
 }));
-api.get('/food-items/:id', asyncHandler(async (req, res) => {
-  const doc = await Restaurant.findOne({ 'menu._id': req.params.id }, { name: 1, 'menu.$': 1 }).lean();
-  if (!doc?.menu?.[0]) return fail(res, 404, 'Food item not found.'); res.json({ data: { ...doc.menu[0], restaurantName: doc.name } });
+
+
+api.get('/restaurants/:id', asyncHandler(async (req, res) => {
+  const id = req.params.id ?? '';
+
+  const doc = await Restaurant.findOne({
+    $or: [
+      { _id: /^[0-9a-fA-F]{24}$/.test(id) ? id : null },
+      { slug: id }
+    ]
+  }).lean();
+
+  if (!doc) {
+    return fail(res, 404, 'Restaurant not found.');
+  }
+
+  return res.json({ data: doc });
 }));
+
+api.get('/restaurants/:id/menu', asyncHandler(async (req, res) => {
+  const id = req.params.id ?? '';
+
+  const doc = await Restaurant.findOne({
+    $or: [
+      { _id: /^[0-9a-fA-F]{24}$/.test(id) ? id : null },
+      { slug: id }
+    ]
+  }).select('name menu').lean();
+
+  if (!doc) {
+    return fail(res, 404, 'Restaurant not found.');
+  }
+
+  return res.json({
+    data: doc.menu,
+    restaurant: { name: doc.name }
+  });
+}));
+
 api.get('/search', asyncHandler(async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 80); if (!q) return res.json({ data: [] });
   const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -77,7 +141,15 @@ api.get('/search', asyncHandler(async (req, res) => {
 api.get('/cart', requireAuth, asyncHandler(async (req, res) => {
   const cart = await Cart.findOne({ user: (req as AuthedRequest).user!.id }).populate('restaurant', 'name slug deliveryFee').lean();
   if (!cart) return res.json({ data: null, totals: { subtotal: 0, deliveryFee: 0, tax: 0, total: 0 } });
-  const subtotal = cart.items.reduce((sum, i) => sum + i.price * i.quantity, 0), deliveryFee = (cart.restaurant as any)?.deliveryFee || 0, tax = Math.round(subtotal * 0.05);
+
+const subtotal = cart.items.reduce(
+  (sum, i) => sum + Number(i.price ?? 0) * Number(i.quantity ?? 0),
+  0
+);
+
+const deliveryFee = Number((cart.restaurant as any)?.deliveryFee ?? 0);
+const tax = Math.round(subtotal * 0.05);
+
   res.json({ data: cart, totals: { subtotal, deliveryFee, tax, total: subtotal + deliveryFee + tax } });
 }));
 api.post('/cart/items', requireAuth, asyncHandler(async (req, res) => {
@@ -89,11 +161,17 @@ api.post('/cart/items', requireAuth, asyncHandler(async (req, res) => {
   let cart = await Cart.findOne({ user: (req as AuthedRequest).user!.id });
   if (cart && String(cart.restaurant) !== restaurantId) {
     if (!parsed.data.replace) return fail(res, 409, 'Your cart has items from another restaurant. Send replace: true to start a new cart.');
-    cart.restaurant = restaurant._id; cart.items = [];
+    cart.restaurant = restaurant._id;
+cart.items.splice(0, cart.items.length);
   }
   if (!cart) cart = new Cart({ user: (req as AuthedRequest).user!.id, restaurant: restaurant._id, items: [] });
   const existing = cart.items.find(i => String(i.foodId) === foodId);
-  if (existing) existing.quantity = Math.min(20, existing.quantity + quantity);
+  if (existing) {
+  existing.quantity = Math.min(
+    20,
+    Number(existing.quantity ?? 0) + quantity
+  );
+}
   else cart.items.push({ foodId: item._id, name: item.name, price: item.price, quantity, image: item.image });
   await cart.save(); res.json({ message: 'Added to your cart.', data: cart });
 }));
